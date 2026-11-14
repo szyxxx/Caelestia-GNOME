@@ -1,0 +1,47 @@
+#!/bin/bash
+# Put GNOME back as it was before caelestia-apply.
+#   caelestia-restore            settings, GTK colours, default apps and dock icons go back; files stay installed
+#   caelestia-restore --remove   the same, then delete everything the installer put on this computer
+B=~/.local/share/caelestia-rice/backup
+if [ -d "$B/dconf" ]; then
+  for d in $(cat "$B/dconf/dirs"); do
+    dconf reset -f "$d"; dconf load "$d" < "$B/dconf/$(echo "$d" | tr / _).dir"
+  done
+  for k in $(cat "$B/dconf/keys"); do
+    v=$(cat "$B/dconf/$(echo "$k" | tr / _).key")
+    if [ -n "$v" ]; then dconf write "$k" "$v"; else dconf reset "$k"; fi
+  done
+elif [ -f "$B/dconf-before.ini" ]; then   # a backup made by the first version of this rice
+  PF=$(gsettings get org.gnome.Ptyxis default-profile-uuid 2>/dev/null | tr -d "'")
+  for k in /org/gnome/desktop/interface/ /org/gnome/desktop/background/ /org/gnome/desktop/screensaver/ \
+           /org/gnome/desktop/wm/preferences/ /org/gnome/desktop/wm/keybindings/ /org/gnome/shell/keybindings/ \
+           /org/gnome/shell/extensions/user-theme/ /org/gnome/shell/extensions/tiling-assistant/ \
+           /org/gnome/mutter/ ; do dconf reset -f "$k"; done
+  dconf reset /org/gnome/shell/enabled-extensions
+  dconf reset /org/gnome/shell/disabled-extensions
+  [ -n "$PF" ] && dconf reset /org/gnome/Ptyxis/Profiles/$PF/palette
+  dconf load / < "$B/dconf-before.ini"
+else
+  echo "No backup found in $B" >&2; exit 1
+fi
+[ -x ~/.local/bin/caelestia-icons ] && ~/.local/bin/caelestia-icons --restore >/dev/null 2>&1
+for d in gtk-4.0 gtk-3.0; do
+  rm -f ~/.config/$d/gtk.css ~/.config/$d/gtk-dark.css ~/.config/$d/caelestia.css
+  cp -P "$B/$d"/* ~/.config/$d/ 2>/dev/null
+done
+# Default apps: files caelestia-apps changed go back; ones it created are removed.
+for f in "$B"/apps/*; do
+  [ -e "$f" ] || continue
+  n=$(basename "$f")
+  case "$n" in *.absent) rm -f ~/.config/"${n%.absent}";; *) cp "$f" ~/.config/"$n";; esac
+done
+if [ "${1:-}" = --remove ]; then
+  rm -rf ~/.local/share/gnome-shell/extensions/caelestia-gnome@szyx ~/.themes/Caelestia ~/.local/share/fonts/caelestia \
+         ~/.local/share/caelestia-rice ~/.local/share/caelestia-gnome ~/.cache/caelestia-gnome ~/.config/caelestia-gnome \
+         ~/.local/share/org.gnome.Ptyxis/palettes/caelestia.palette ~/.local/share/backgrounds/caelestia-blackhole.png
+  rm -f ~/.local/bin/caelestia-{apply,scheme,icons,apps,weather,charge,restore}
+  fc-cache -f >/dev/null 2>&1
+  echo "Restored and removed. Log out and back in to finish."
+else
+  echo "Restored. Log out and back in to finish. (caelestia-restore --remove also deletes the files.)"
+fi

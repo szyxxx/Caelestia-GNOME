@@ -1,0 +1,512 @@
+#!/usr/bin/python3
+"""Theme the whole desktop from a wallpaper or a named palette, and manage rice profiles.
+
+  caelestia-scheme [wallpaper]        rebuild with the current choices
+  caelestia-scheme --list             print profiles and palettes
+  caelestia-scheme --profile NAME     apply a rice profile
+  caelestia-scheme --palette ID       catppuccin-mocha, tokyo-night, ... or dynamic (from wallpaper)
+  caelestia-scheme --variant V        tonalspot, vibrant, expressive, fruitsalad, rainbow, neutral, monochrome
+  caelestia-scheme --mode M           dark, light
+  caelestia-scheme --motion M         fluid, expressive, calm, snappy, off
+  caelestia-scheme --corners C        round, soft, sharp
+  caelestia-scheme --border B         normal, thin
+  caelestia-scheme --save NAME        save the current look, wallpaper included, as a profile
+  caelestia-scheme --delete NAME      remove a saved profile
+
+Writes ~/.local/share/caelestia-rice/{scheme.json,shell.css,themes.json}, the Caelestia shell
+theme in ~/.themes, the GTK colour overrides and the Ptyxis terminal palette. The extension
+watches scheme.json and restyles itself live. Your choices live in ~/.config/caelestia-gnome.
+"""
+import argparse, colorsys, hashlib, json, math, os, re, subprocess, sys, tempfile
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+HOME = Path.home()
+OUT = HOME / '.local/share/caelestia-rice'
+EXT = HOME / '.local/share/gnome-shell/extensions/caelestia-gnome@szyx'
+CONFIG = HOME / '.config/caelestia-gnome'
+STATE = CONFIG / 'theme.json'
+PROFILES = CONFIG / 'profiles'
+THUMBS = HOME / '.cache/caelestia-gnome/thumbs'
+WALL_DIRS = [HOME / '.local/share/backgrounds', HOME / 'Pictures/Wallpapers']
+RADIUS = {'round': 25, 'soft': 14, 'sharp': 6}
+BORDER = {'normal': 10, 'thin': 5}
+DEFAULTS = {'palette': 'dynamic', 'variant': 'tonalspot', 'mode': 'dark', 'motion': 'fluid',
+            'corners': 'round', 'border': 'normal', 'profile': 'caelestia'}
+
+# (primary, secondary, tertiary chroma, tertiary hue shift in degrees, neutral, neutral-variant chroma, primary hue shift)
+VARIANTS = {
+    'tonalspot': ('Tonal', 40, 16, 26, 60, 6, 10, 0),
+    'vibrant': ('Vibrant', 70, 26, 38, 60, 10, 14, 0),
+    'expressive': ('Expressive', 46, 30, 42, 120, 12, 16, 240),
+    'fruitsalad': ('Fruit salad', 52, 38, 38, -60, 10, 16, -50),
+    'rainbow': ('Rainbow', 50, 16, 30, 60, 0, 0, 0),
+    'neutral': ('Neutral', 12, 8, 16, 60, 2, 3, 0),
+    'monochrome': ('Mono', 0, 0, 0, 0, 0, 0, 0),
+}
+
+# bg, low, lowest, container, high, outline, on, onVariant, primary, secondary, tertiary, error, success
+PALETTES = {
+    'catppuccin-mocha': ('Catppuccin Mocha', 'dark', '#1e1e2e #181825 #11111b #313244 #45475a #6c7086 #cdd6f4 #bac2de #cba6f7 #89b4fa #f5c2e7 #f38ba8 #a6e3a1'),
+    'catppuccin-macchiato': ('Catppuccin Macchiato', 'dark', '#24273a #1e2030 #181926 #363a4f #494d64 #6e738d #cad3f5 #b8c0e0 #c6a0f6 #8aadf4 #f5bde6 #ed8796 #a6da95'),
+    'catppuccin-frappe': ('Catppuccin Frappé', 'dark', '#303446 #292c3c #232634 #414559 #51576d #737994 #c6d0f5 #b5bfe2 #ca9ee6 #8caaee #f4b8e4 #e78284 #a6d189'),
+    'catppuccin-latte': ('Catppuccin Latte', 'light', '#eff1f5 #e6e9ef #dce0e8 #ccd0da #bcc0cc #8c8fa1 #4c4f69 #5c5f77 #8839ef #1e66f5 #ea76cb #d20f39 #40a02b'),
+    'tokyo-night': ('Tokyo Night', 'dark', '#1a1b26 #16161e #101014 #292e42 #3b4261 #565f89 #c0caf5 #a9b1d6 #7aa2f7 #bb9af7 #7dcfff #f7768e #9ece6a'),
+    'rose-pine': ('Rosé Pine', 'dark', '#191724 #1f1d2e #15131f #26233a #393552 #6e6a86 #e0def4 #908caa #c4a7e7 #9ccfd8 #ebbcba #eb6f92 #9ccfd8'),
+    'rose-pine-moon': ('Rosé Pine Moon', 'dark', '#232136 #2a273f #1d1b2e #393552 #44415a #6e6a86 #e0def4 #908caa #c4a7e7 #9ccfd8 #ea9a97 #eb6f92 #9ccfd8'),
+    'rose-pine-dawn': ('Rosé Pine Dawn', 'light', '#faf4ed #fffaf3 #f4ede8 #f2e9e1 #dfdad9 #9893a5 #575279 #797593 #907aa9 #286983 #d7827e #b4637a #56949f'),
+    'gruvbox': ('Gruvbox', 'dark', '#282828 #1d2021 #141617 #3c3836 #504945 #928374 #ebdbb2 #d5c4a1 #fabd2f #8ec07c #fe8019 #fb4934 #b8bb26'),
+    'nord': ('Nord', 'dark', '#2e3440 #3b4252 #272c36 #434c5e #4c566a #7b88a1 #eceff4 #d8dee9 #88c0d0 #81a1c1 #b48ead #bf616a #a3be8c'),
+    'dracula': ('Dracula', 'dark', '#282a36 #21222c #191a21 #343746 #44475a #6272a4 #f8f8f2 #d6d6d0 #bd93f9 #8be9fd #ff79c6 #ff5555 #50fa7b'),
+    'everforest': ('Everforest', 'dark', '#2d353b #272e33 #232a2e #3d484d #475258 #859289 #d3c6aa #bcb5a0 #a7c080 #83c092 #d699b6 #e67e80 #a7c080'),
+    'kanagawa': ('Kanagawa', 'dark', '#1f1f28 #16161d #101014 #2a2a37 #363646 #727169 #dcd7ba #c8c093 #7e9cd8 #7aa89f #d27e99 #e46876 #98bb6c'),
+    'oxocarbon': ('Oxocarbon', 'dark', '#161616 #1c1c1c #0f0f0f #262626 #393939 #6f6f6f #f2f4f8 #dde1e6 #78a9ff #82cfff #ff7eb6 #ee5396 #42be65'),
+    'one-dark': ('One Dark', 'dark', '#282c34 #21252b #1b1e23 #2c313a #3e4451 #5c6370 #c8ccd4 #abb2bf #61afef #56b6c2 #c678dd #e06c75 #98c379'),
+    'sakura': ('Sakura', 'dark', '#1c1419 #231a20 #150f13 #2d2229 #3b2d36 #84707c #f4e4ec #d6bfcb #f5b5c9 #c8c3e1 #ffd1a9 #ffb4ab #b5ccba'),
+}
+
+# name, palette, variant, motion, corners, border, mode
+BUILTIN = {
+    'caelestia': ('Caelestia', 'dynamic', 'tonalspot', 'fluid', 'round', 'normal', 'dark'),
+    'vivid': ('Vivid', 'dynamic', 'vibrant', 'expressive', 'round', 'normal', 'dark'),
+    'mocha': ('Mocha', 'catppuccin-mocha', 'tonalspot', 'fluid', 'round', 'normal', 'dark'),
+    'latte': ('Latte', 'catppuccin-latte', 'tonalspot', 'fluid', 'round', 'normal', 'light'),
+    'tokyo': ('Tokyo Night', 'tokyo-night', 'tonalspot', 'fluid', 'soft', 'normal', 'dark'),
+    'rose': ('Rosé Pine', 'rose-pine', 'tonalspot', 'calm', 'round', 'normal', 'dark'),
+    'dawn': ('Rosé Dawn', 'rose-pine-dawn', 'tonalspot', 'calm', 'soft', 'normal', 'light'),
+    'gruvbox': ('Gruvbox', 'gruvbox', 'tonalspot', 'snappy', 'sharp', 'thin', 'dark'),
+    'nord': ('Nord', 'nord', 'tonalspot', 'fluid', 'soft', 'thin', 'dark'),
+    'dracula': ('Dracula', 'dracula', 'tonalspot', 'expressive', 'round', 'normal', 'dark'),
+    'forest': ('Everforest', 'everforest', 'tonalspot', 'calm', 'soft', 'normal', 'dark'),
+    'kanagawa': ('Kanagawa', 'kanagawa', 'tonalspot', 'fluid', 'soft', 'normal', 'dark'),
+    'carbon': ('Oxocarbon', 'oxocarbon', 'tonalspot', 'snappy', 'sharp', 'thin', 'dark'),
+    'sakura': ('Sakura', 'sakura', 'tonalspot', 'expressive', 'round', 'normal', 'dark'),
+    'mono': ('Mono', 'dynamic', 'monochrome', 'snappy', 'sharp', 'thin', 'dark'),
+}
+
+
+def lab2rgb(l, a, b):
+    fy = (l + 16) / 116
+    fx, fz = fy + a / 500, fy - b / 200
+    f = lambda t: t ** 3 if t > 6 / 29 else 3 * (6 / 29) ** 2 * (t - 4 / 29)
+    x, y, z = .95047 * f(fx), f(fy), 1.08883 * f(fz)
+    lin = (3.2406 * x - 1.5372 * y - .4986 * z,
+           -.9689 * x + 1.8758 * y + .0415 * z,
+           .0557 * x - .204 * y + 1.057 * z)
+    return lin
+
+
+def rgb2lab(r, g, b):
+    def d(c):
+        c /= 255
+        return c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4
+    r, g, b = d(r), d(g), d(b)
+    x = (.4124 * r + .3576 * g + .1805 * b) / .95047
+    y = .2126 * r + .7152 * g + .0722 * b
+    z = (.0193 * r + .1192 * g + .9505 * b) / 1.08883
+    f = lambda t: t ** (1 / 3) if t > (6 / 29) ** 3 else t / (3 * (6 / 29) ** 2) + 4 / 29
+    return 116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))
+
+
+def tone(h, c, t):
+    """Colour at lightness t (M3 tone = L*) and hue h, losing chroma to stay in sRGB."""
+    while True:
+        lin = lab2rgb(t, c * math.cos(h), c * math.sin(h))
+        if c <= 0 or all(-.0005 <= v <= 1.0005 for v in lin):
+            break
+        c = max(0, c - 1)
+    e = lambda v: 12.92 * v if v <= .0031308 else 1.055 * v ** (1 / 2.4) - .055
+    return '#%02x%02x%02x' % tuple(round(min(1, max(0, e(max(0, v)))) * 255) for v in lin)
+
+
+def seed_hue(path):
+    """Remembered per image, because decoding a large wallpaper is most of a theme switch."""
+    cache = HOME / '.cache/caelestia-gnome/seed-hue.json'
+    try:
+        known = json.loads(cache.read_text())
+    except (OSError, ValueError):
+        known = {}
+    try:
+        key = f'{path}:{os.stat(path).st_mtime_ns}'
+    except OSError:
+        return math.radians(270)   # no wallpaper file (a plain colour, or it was moved): a calm violet
+    if key not in known:
+        try:
+            hue = measure_hue(path)
+        except Exception as e:      # a format Pillow cannot read (SVG, JXL, XML slideshow)
+            print(f'caelestia-scheme: cannot read colours from {path} ({e}); using the default hue', file=sys.stderr)
+            hue = math.radians(270)
+        known = {key: hue, **dict(list(known.items())[:40])}
+        atomic(cache, json.dumps(known))
+    return known[key]
+
+
+def measure_hue(path):
+    from PIL import Image
+    im = Image.open(path).convert('RGB')
+    im.thumbnail((160, 160))
+    bins = [0.0] * 72
+    px = im.getdata() if not hasattr(im, 'get_flattened_data') else im.get_flattened_data()
+    for r, g, b in px:
+        l, a, bb = rgb2lab(r, g, b)
+        c = math.hypot(a, bb)
+        if c < 8 or l < 8:
+            continue
+        bins[int((math.atan2(bb, a) % math.tau) / math.tau * 72) % 72] += c * c
+    if not any(bins):
+        return math.radians(270)
+    # Smooth over neighbouring hues so a noisy peak cannot beat a broad one.
+    best = max(range(72), key=lambda i: sum(bins[(i + d) % 72] for d in range(-3, 4)))
+    return (best + .5) / 72 * math.tau
+
+
+def scheme(h, variant='tonalspot', mode='dark'):
+    _, pc, sc, tc, shift, n, v, hshift = VARIANTS[variant]
+    p = h + math.radians(hshift)
+    t = p + math.radians(shift)
+    d = mode == 'dark'
+    # M3 tone pairs: (dark, light).
+    T = lambda dark, light: dark if d else light
+    pair = lambda name, hue, c: {
+        name: tone(hue, c, T(80, 40)), 'on' + name[0].upper() + name[1:]: tone(hue, c, T(20, 100)),
+        name + 'Container': tone(hue, c, T(30, 90)), 'on' + name[0].upper() + name[1:] + 'Container': tone(hue, c, T(90, 10)),
+    }
+    return {
+        **pair('primary', p, pc), **pair('secondary', p, sc), **pair('tertiary', t, tc),
+        'error': T('#ffb4ab', '#ba1a1a'), 'onError': T('#690005', '#ffffff'),
+        'errorContainer': T('#93000a', '#ffdad6'), 'onErrorContainer': T('#ffdad6', '#410002'),
+        'success': T('#b5ccba', '#386a20'), 'onSuccess': T('#213528', '#ffffff'),
+        'surface': tone(p, n, T(6, 98)), 'surfaceDim': tone(p, n, T(6, 87)), 'surfaceBright': tone(p, n, T(24, 98)),
+        'surfaceContainerLowest': tone(p, n, T(4, 100)), 'surfaceContainerLow': tone(p, n, T(10, 96)),
+        'surfaceContainer': tone(p, n, T(12, 94)), 'surfaceContainerHigh': tone(p, n, T(17, 92)),
+        'surfaceContainerHighest': tone(p, n, T(22, 90)), 'onSurface': tone(p, n, T(90, 10)),
+        'surfaceVariant': tone(p, v, T(30, 90)), 'onSurfaceVariant': tone(p, v, T(80, 30)),
+        'outline': tone(p, v, T(60, 50)), 'outlineVariant': tone(p, v, T(30, 80)),
+    }
+
+
+def rgb(c):
+    return [int(c[i:i + 2], 16) for i in (1, 3, 5)]
+
+
+def mix(a, b, k):
+    return '#%02x%02x%02x' % tuple(round(x + (y - x) * k) for x, y in zip(rgb(a), rgb(b)))
+
+
+def rgba(c, a):
+    return 'rgba(%d, %d, %d, %s)' % (*rgb(c), a)
+
+
+def lum(c):
+    return .2126 * rgb(c)[0] + .7152 * rgb(c)[1] + .0722 * rgb(c)[2]
+
+
+def from_palette(pid):
+    """Map a published palette onto the roles the shell and apps read."""
+    _, mode, values = PALETTES[pid]
+    bg, low, lowest, cont, high, outline, on, onv, pri, sec, ter, err, ok = values.split()
+    d = mode == 'dark'
+    pair = lambda name, c: {
+        name: c, 'on' + name[0].upper() + name[1:]: mix(c, lowest, .8) if lum(c) > 110 else '#ffffff',
+        name + 'Container': mix(bg, c, .32), 'on' + name[0].upper() + name[1:] + 'Container': mix(c, on, .55),
+    }
+    return {
+        **pair('primary', pri), **pair('secondary', sec), **pair('tertiary', ter),
+        'error': err, 'onError': mix(err, lowest, .8) if lum(err) > 110 else '#ffffff',
+        'errorContainer': mix(bg, err, .35), 'onErrorContainer': mix(err, on, .6),
+        'success': ok, 'onSuccess': mix(ok, lowest, .8) if lum(ok) > 110 else '#ffffff',
+        'surface': bg, 'surfaceDim': mix(bg, lowest, .5), 'surfaceBright': high,
+        'surfaceContainerLowest': lowest, 'surfaceContainerLow': low,
+        'surfaceContainer': mix(bg, cont, .6), 'surfaceContainerHigh': cont, 'surfaceContainerHighest': high,
+        'onSurface': on, 'surfaceVariant': cont, 'onSurfaceVariant': onv,
+        'outline': outline, 'outlineVariant': high,
+    }
+
+
+def atomic(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent)
+    with os.fdopen(fd, 'w') as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def fill(template, s):
+    for k in sorted(s, key=len, reverse=True):
+        template = template.replace('{{%s}}' % k, s[k])
+    return template
+
+
+def shell_css(s, tokens, mode):
+    extra = {
+        'b': str(tokens['border']),
+        # Washes that sit over album art, so they must keep the text readable in either mode.
+        'scrim': rgba(mix(s['surface'], s['surfaceContainer'], .5), .78 if mode == 'dark' else .85),
+        'hoverWash': rgba(s['onSurface'], .1),
+    }
+    css = fill((EXT / 'theme.tpl.css').read_text(), {**s, **extra})
+    k = tokens['rounding'] / 25
+    if k != 1:
+        css = re.sub(r'border-radius: ([^;]+);', lambda m: 'border-radius: %s;' % ' '.join(
+            f'{max(0, round(int(v[:-2]) * k))}px' if v.endswith('px') else v for v in m.group(1).split()), css)
+    return css
+
+
+def gtk_css(s):
+    return f"""/* Generated by caelestia-scheme */
+@define-color accent_color {s['primary']};
+@define-color accent_bg_color {s['primary']};
+@define-color accent_fg_color {s['onPrimary']};
+@define-color window_bg_color {s['surface']};
+@define-color window_fg_color {s['onSurface']};
+@define-color view_bg_color {s['surfaceContainerLow']};
+@define-color view_fg_color {s['onSurface']};
+@define-color headerbar_bg_color {s['surface']};
+@define-color headerbar_fg_color {s['onSurface']};
+@define-color headerbar_border_color {s['surfaceContainer']};
+@define-color headerbar_backdrop_color {s['surface']};
+@define-color headerbar_shade_color alpha(black, .24);
+@define-color sidebar_bg_color {s['surfaceContainerLow']};
+@define-color sidebar_fg_color {s['onSurface']};
+@define-color sidebar_backdrop_color {s['surface']};
+@define-color sidebar_shade_color alpha(black, .2);
+@define-color secondary_sidebar_bg_color {s['surfaceContainer']};
+@define-color card_bg_color {s['surfaceContainer']};
+@define-color card_fg_color {s['onSurface']};
+@define-color dialog_bg_color {s['surfaceContainerHigh']};
+@define-color dialog_fg_color {s['onSurface']};
+@define-color popover_bg_color {s['surfaceContainerHigh']};
+@define-color popover_fg_color {s['onSurface']};
+@define-color thumbnail_bg_color {s['surfaceContainer']};
+@define-color thumbnail_fg_color {s['onSurface']};
+@define-color borders alpha({s['outlineVariant']}, .5);
+"""
+
+
+def ptyxis(s):
+    a = [s['surfaceContainerHigh'], s['error'], s['success'], s['tertiary'], s['primary'],
+         s['secondary'], s['tertiary'], s['onSurfaceVariant'], s['outline'], s['error'],
+         s['success'], s['tertiary'], s['primary'], s['secondary'], s['tertiary'], s['onSurface']]
+    colors = '\n'.join(f'Color{i}={c}' for i, c in enumerate(a))
+    body = f"Background={s['surface']}\nForeground={s['onSurface']}\nTitlebarBackground={s['surface']}\n" \
+           f"TitlebarForeground={s['onSurface']}\nCursor={s['primary']}\n{colors}\n"
+    return f"[Palette]\nName=Caelestia\nPrimary=true\n\n[Dark]\n{body}\n[Light]\n{body}"
+
+
+def current_wallpaper():
+    uri = subprocess.check_output(
+        ['gsettings', 'get', 'org.gnome.desktop.background', 'picture-uri-dark'], text=True).strip().strip("'")
+    return unquote(urlparse(uri).path)
+
+
+def load_state():
+    st = dict(DEFAULTS)
+    try:
+        st.update(json.loads(STATE.read_text()))
+    except (OSError, ValueError):
+        pass
+    return st
+
+
+def saved_profiles():
+    out = {}
+    if PROFILES.is_dir():
+        for f in sorted(PROFILES.glob('*.json')):
+            try:
+                out[f.stem] = json.loads(f.read_text())
+            except ValueError:
+                pass
+    return out
+
+
+def slug(name):
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or 'rice'
+
+
+def colours_for(st, hue):
+    if st['palette'] != 'dynamic' and st['palette'] in PALETTES:
+        return from_palette(st['palette'])
+    return scheme(hue, st.get('variant', 'tonalspot') if st.get('variant') in VARIANTS else 'tonalspot', st.get('mode', 'dark'))
+
+
+def swatch(s):
+    return [s['surface'], s['surfaceContainerHigh'], s['primary'], s['secondary'], s['tertiary'], s['onSurface']]
+
+
+def thumb(path):
+    src = Path(path)
+    key = hashlib.sha1(f'{src}:{src.stat().st_mtime_ns}'.encode()).hexdigest()
+    out = THUMBS / f'{key}.jpg'
+    if not out.exists():
+        from PIL import Image
+        THUMBS.mkdir(parents=True, exist_ok=True)
+        im = Image.open(src).convert('RGB')
+        im.thumbnail((352, 352))
+        im.save(out, quality=85)
+    return str(out)
+
+
+def wallpapers():
+    out = []
+    for d in WALL_DIRS:
+        if not d.is_dir():
+            continue
+        for f in sorted(d.iterdir()):
+            if f.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp'):
+                try:
+                    out.append({'path': str(f), 'thumb': thumb(f), 'name': f.stem})
+                except OSError:
+                    pass
+    return out
+
+
+def write_catalog(st, hue, wall):
+    profiles = []
+    for pid, (name, pal, var, motion, corners, border, mode) in BUILTIN.items():
+        c = colours_for({'palette': pal, 'variant': var, 'mode': mode}, hue)
+        profiles.append({'id': pid, 'name': name, 'swatch': swatch(c), 'motion': motion, 'corners': corners, 'mode': mode, 'custom': False})
+    for pid, p in saved_profiles().items():
+        c = colours_for(p, hue)
+        profiles.append({'id': pid, 'name': p.get('name', pid), 'swatch': swatch(c), 'motion': p.get('motion', 'fluid'),
+                         'corners': p.get('corners', 'round'), 'mode': p.get('mode', 'dark'), 'custom': True})
+    palettes = [{'id': 'dynamic', 'name': 'From wallpaper', 'swatch': swatch(scheme(hue, st['variant'] if st['variant'] in VARIANTS else 'tonalspot', st['mode']))}]
+    palettes += [{'id': pid, 'name': v[0], 'swatch': swatch(from_palette(pid))} for pid, v in PALETTES.items()]
+    atomic(OUT / 'themes.json', json.dumps({
+        'current': {**st, 'wallpaper': wall}, 'profiles': profiles, 'palettes': palettes,
+        'variants': [{'id': k, 'name': v[0]} for k, v in VARIANTS.items()], 'wallpapers': wallpapers(),
+    }))
+
+
+def gset(schema, key, value):
+    subprocess.run(['gsettings', 'set', schema, key, value], check=False, stderr=subprocess.DEVNULL)
+
+
+# GNOME's accent names and the matching Yaru theme.
+ACCENTS = [(25, 'orange', ''), (0, 'red', 'red'), (55, 'yellow', 'yellow'), (130, 'green', 'sage'),
+           (180, 'teal', 'viridian'), (225, 'blue', 'blue'), (280, 'purple', 'purple'), (325, 'pink', 'magenta')]
+
+
+def sync_gnome(s, mode):
+    r, g, b = rgb(s['primary'])
+    _, aa, bb = rgb2lab(r, g, b)
+    if math.hypot(aa, bb) < 10:
+        accent, yaru = 'slate', ''
+    else:
+        deg = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)[0] * 360
+        _, accent, yaru = min(ACCENTS, key=lambda a: min(abs(a[0] - deg), 360 - abs(a[0] - deg)))
+    gset('org.gnome.desktop.interface', 'color-scheme', 'prefer-dark' if mode == 'dark' else 'default')
+    gset('org.gnome.desktop.interface', 'accent-color', accent)
+    base = f'Yaru-{yaru}' if yaru else 'Yaru'
+    name = base + ('-dark' if mode == 'dark' else '')
+    if Path(f'/usr/share/themes/{name}').is_dir():
+        gset('org.gnome.desktop.interface', 'gtk-theme', name)
+    if Path(f'/usr/share/icons/{name}').is_dir():
+        gset('org.gnome.desktop.interface', 'icon-theme', name)
+
+
+def set_wallpaper(path):
+    uri = Path(path).as_uri()
+    gset('org.gnome.desktop.background', 'picture-uri', uri)
+    gset('org.gnome.desktop.background', 'picture-uri-dark', uri)
+    gset('org.gnome.desktop.screensaver', 'picture-uri', uri)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('wallpaper', nargs='?')
+    ap.add_argument('--profile')
+    ap.add_argument('--palette', choices=['dynamic', *PALETTES])
+    ap.add_argument('--variant', choices=list(VARIANTS))
+    ap.add_argument('--mode', choices=['dark', 'light'])
+    ap.add_argument('--motion', choices=['fluid', 'expressive', 'calm', 'snappy', 'off'])
+    ap.add_argument('--corners', choices=list(RADIUS))
+    ap.add_argument('--border', choices=list(BORDER))
+    ap.add_argument('--save', metavar='NAME')
+    ap.add_argument('--delete', metavar='NAME')
+    ap.add_argument('--list', action='store_true')
+    a = ap.parse_args()
+
+    st = load_state()
+    wall = a.wallpaper or current_wallpaper()
+    hue = seed_hue(wall)
+
+    if a.list:
+        for pid, v in BUILTIN.items():
+            print(f'{pid:<14} {v[0]} ({v[1]}, {v[3]}, {v[4]})')
+        for pid, p in saved_profiles().items():
+            print(f"{pid:<14} {p.get('name', pid)} (saved)")
+        print('\npalettes: dynamic ' + ' '.join(PALETTES))
+        return
+    if a.save:
+        PROFILES.mkdir(parents=True, exist_ok=True)
+        pid = slug(a.save)
+        (PROFILES / f'{pid}.json').write_text(json.dumps({**st, 'name': a.save, 'profile': pid, 'wallpaper': wall}, indent=1))
+        st['profile'] = pid
+        atomic(STATE, json.dumps(st, indent=1))
+        write_catalog(st, hue, wall)
+        print(f'Saved {a.save}')
+        return
+    if a.delete:
+        f = PROFILES / f'{slug(a.delete)}.json'
+        if not f.exists():
+            sys.exit(f'No saved profile called {a.delete}; built-in profiles cannot be deleted.')
+        f.unlink()
+        if st.get('profile') == slug(a.delete):
+            st['profile'] = ''
+            atomic(STATE, json.dumps(st, indent=1))
+        write_catalog(st, hue, wall)
+        return
+
+    syncing = False
+    if a.profile:
+        saved = saved_profiles().get(a.profile)
+        if saved:
+            st.update({k: saved[k] for k in DEFAULTS if k in saved})
+            st['profile'] = a.profile
+            if saved.get('wallpaper') and Path(saved['wallpaper']).exists():
+                wall = saved['wallpaper']
+                hue = seed_hue(wall)
+                set_wallpaper(wall)
+        elif a.profile in BUILTIN:
+            _, pal, var, motion, corners, border, mode = BUILTIN[a.profile]
+            st.update(palette=pal, variant=var, motion=motion, corners=corners, border=border, mode=mode, profile=a.profile)
+        else:
+            sys.exit(f'No profile called {a.profile}. See caelestia-scheme --list')
+        syncing = True
+    for k in ('palette', 'variant', 'mode', 'motion', 'corners', 'border'):
+        v = getattr(a, k)
+        if v is not None:
+            st[k] = v
+            st['profile'] = ''  # A hand-tuned look is no longer the named profile.
+            syncing = True
+    # A published palette has one fixed mode; follow it so the app chrome agrees.
+    if a.palette and a.palette in PALETTES:
+        st['mode'] = PALETTES[a.palette][1]
+    if a.mode and st['palette'] in PALETTES:
+        twin = {'catppuccin-latte': 'catppuccin-mocha', 'catppuccin-mocha': 'catppuccin-latte',
+                'rose-pine-dawn': 'rose-pine', 'rose-pine': 'rose-pine-dawn'}.get(st['palette'])
+        if PALETTES[st['palette']][1] != a.mode and twin:
+            st['palette'] = twin
+        elif PALETTES[st['palette']][1] != a.mode:
+            st['palette'] = 'dynamic'
+
+    mode = st['mode']
+    s = colours_for(st, hue)
+    tokens = {'border': BORDER.get(st['border'], 10), 'rounding': RADIUS.get(st['corners'], 25), 'motion': st['motion']}
+    atomic(OUT / 'shell.css', shell_css(s, tokens, mode))
+    shell_theme = HOME / '.themes/Caelestia/gnome-shell/gnome-shell.css'
+    atomic(shell_theme, fill((EXT / 'shell-theme.tpl.css').read_text(), s))
+    for gtk in ('gtk-4.0', 'gtk-3.0'):
+        atomic(HOME / '.config' / gtk / 'caelestia.css', gtk_css(s))
+    atomic(HOME / '.local/share/org.gnome.Ptyxis/palettes/caelestia.palette', ptyxis(s))
+    atomic(STATE, json.dumps(st, indent=1))
+    write_catalog(st, hue, wall)
+    if syncing:
+        sync_gnome(s, mode)
+    # Written last: this is the file the extension watches.
+    atomic(OUT / 'scheme.json', json.dumps({'wallpaper': wall, 'colors': s, 'tokens': tokens, 'mode': mode}, indent=1))
+    print(f"{wall}: {st['palette']} {mode}, primary {s['primary']}, surface {s['surface']}")
+
+
+if __name__ == '__main__':
+    main()

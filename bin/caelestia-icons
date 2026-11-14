@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Give every dock (favorite) app the same rounded, same-size icon.
+
+  caelestia-icons            normalize the current favorites (re-run after adding a favorite)
+  caelestia-icons --restore  put every original icon back
+
+Each icon becomes a squircle tile at the same size. An icon that is already a tile or a full square is
+cropped and re-rounded; any other shape (a folder, a logo) is centred on a soft tile. Originals are never
+edited: system launchers get a copy in ~/.local/share/applications pointing at the new PNG, and the
+original Icon value is kept in state.json so --restore can undo everything.
+"""
+import json, os, shutil, sys, warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+import gi
+gi.require_version('Gtk', '4.0'); gi.require_version('Gdk', '4.0')
+from gi.repository import Gio, GLib, Gtk, Gdk
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
+
+HOME = os.path.expanduser('~')
+APPS = f'{HOME}/.local/share/applications'
+OUT = f'{HOME}/.local/share/caelestia-rice/icons'
+STATE = f'{OUT}/state.json'
+CANVAS, TILE = 512, 420          # tile = 82% of the canvas, the macOS icon grid
+SS = 4                           # supersampling for smooth squircle edges
+
+def load_state():
+    try: return json.load(open(STATE))
+    except Exception: return {}
+
+def save_state(s):
+    os.makedirs(OUT, exist_ok=True)
+    json.dump(s, open(STATE, 'w'), indent=1)
+
+def squircle(size, n=5.0):
+    big = size * SS
+    m = Image.new('L', (big, big), 0)
+    r = big / 2
+    pts = []
+    import math
+    for i in range(720):
+        t = 2 * math.pi * i / 720
+        c, s = math.cos(t), math.sin(t)
+        pts.append((r + r * (abs(c) ** (2 / n)) * (1 if c >= 0 else -1),
+                    r + r * (abs(s) ** (2 / n)) * (1 if s >= 0 else -1)))
+    ImageDraw.Draw(m).polygon(pts, fill=255)
+    return m.resize((size, size), Image.LANCZOS)
+
+def resolve(icon_string):
+    """Path of the best (largest) image for an Icon= value, or None."""
+    if not icon_string: return None
+    if os.path.isabs(icon_string): return icon_string if os.path.exists(icon_string) else None
+    theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+    p = theme.lookup_icon(icon_string, None, 512, 1, 0, 0).get_file()
+    path = p.get_path() if p else None
+    if path and path.endswith('.svg'):
+        try:
+            gi.require_version('Rsvg', '2.0'); from gi.repository import Rsvg
+            h = Rsvg.Handle.new_from_file(path)
+            import cairo
+            surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, CANVAS, CANVAS)
+            ctx = cairo.Context(surf)
+            h.render_document(ctx, Rsvg.Rectangle(x=0, y=0, width=CANVAS, height=CANVAS))
+            tmp = f'{OUT}/.svg-{os.path.basename(path)}.png'
+            surf.write_to_png(tmp)
+            return tmp
+        except Exception as e:
+            print('  cannot render svg', path, e)
+            return None
+    return path
+
+def is_tile(im):
+    """True when the opaque part is a filled rounded rectangle (or square) rather than a free shape."""
+    a = im.split()[3].point(lambda v: 255 if v > 128 else 0)
+    bb = a.getbbox()
+    if not bb: return False
+    a = a.crop(bb)
+    w, h = a.size
+    if abs(w - h) > 0.06 * max(w, h): return False
+    # A tile is opaque all along a frame set in from its edge (past the corner rounding).
+    inset = int(0.22 * w)
+    edge = int(0.05 * w)
+    probe = []
+    for x in range(inset, w - inset, max(1, w // 60)):
+        probe += [(x, edge), (x, h - 1 - edge)]
+    for y in range(inset, h - inset, max(1, h // 60)):
+        probe += [(edge, y), (w - 1 - edge, y)]
+    return sum(1 for p in probe if a.getpixel(p)) / len(probe) > 0.97
+
+def normalize(src, dest):
+    im = Image.open(src).convert('RGBA')
+    if im.size[0] < 256: im = im.resize((512, 512), Image.LANCZOS)
+    mask = squircle(TILE)
+    tile = Image.new('RGBA', (TILE, TILE), (0, 0, 0, 0))
+    if is_tile(im):
+        body = im.crop(im.split()[3].point(lambda v: 255 if v > 128 else 0).getbbox())
+        # Trim a hair more so the old rounded corners never peek out of the new squircle.
+        w, h = body.size; k = int(0.012 * w)
+        body = body.crop((k, k, w - k, h - k)).resize((TILE, TILE), Image.LANCZOS)
+        tile.paste(body, (0, 0))
+        kind = 'tile'
+    else:
+        # Free shape: centre it on a soft light tile, like macOS does for non-square icons.
+        bg = Image.new('RGBA', (TILE, TILE))
+        top, bottom = (250, 250, 252), (226, 228, 234)
+        for y in range(TILE):
+            t = y / (TILE - 1)
+            ImageDraw.Draw(bg).line([(0, y), (TILE, y)], fill=tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3)) + (255,))
+        tile = bg
+        body = im.crop(im.getbbox())
+        f = int(TILE * 0.70) / max(body.size)
+        body = body.resize((max(1, int(body.size[0] * f)), max(1, int(body.size[1] * f))), Image.LANCZOS)
+        tile.alpha_composite(body, ((TILE - body.size[0]) // 2, (TILE - body.size[1]) // 2))
+        kind = 'shape'
+    tile.putalpha(ImageChops.multiply(tile.split()[3], mask))
+    out = Image.new('RGBA', (CANVAS, CANVAS), (0, 0, 0, 0))
+    off = (CANVAS - TILE) // 2
+    # A faint contact shadow so light tiles still read on a light background.
+    sh = Image.new('RGBA', (CANVAS, CANVAS), (0, 0, 0, 0))
+    sh.paste((0, 0, 0, 70), (off, off + 6), mask)
+    out.alpha_composite(sh.filter(ImageFilter.GaussianBlur(7)))
+    out.alpha_composite(tile, (off, off))
+    out.save(dest)
+    return kind
+
+def keyfile(path):
+    k = GLib.KeyFile()
+    k.load_from_file(path, GLib.KeyFileFlags.KEEP_COMMENTS | GLib.KeyFileFlags.KEEP_TRANSLATIONS)
+    return k
+
+def main():
+    if '--restore' not in sys.argv and not Gdk.Display.get_default():
+        sys.exit('caelestia-icons needs a running desktop session (no display found)')
+    os.makedirs(OUT, exist_ok=True); os.makedirs(APPS, exist_ok=True)
+    state = load_state()
+    restore = '--restore' in sys.argv
+    favs = Gio.Settings.new('org.gnome.shell').get_strv('favorite-apps')
+    ids = list(state) if restore else favs
+    for app_id in ids:
+        local = f'{APPS}/{app_id}'
+        if restore:
+            s = state[app_id]
+            if s.get('copied'):
+                os.remove(local) if os.path.exists(local) else None
+            elif os.path.exists(local):
+                k = keyfile(local); k.set_string('Desktop Entry', 'Icon', s['icon']); k.save_to_file(local)
+            print('restored', app_id)
+            continue
+        info = Gio.DesktopAppInfo.new(app_id)
+        if not info: print('skip (not installed)', app_id); continue
+        src_file = info.get_filename()
+        k = keyfile(src_file)
+        try: cur = k.get_string('Desktop Entry', 'Icon')
+        except GLib.Error: cur = None
+        if app_id in state:
+            orig = state[app_id]['icon']
+            # The app may have changed its own icon since (a PWA refresh): take the new one as original.
+            if cur and not cur.startswith(OUT): orig = state[app_id]['icon'] = cur
+        else:
+            orig = cur
+            state[app_id] = {'icon': orig, 'copied': not src_file.startswith(APPS)}
+        src = resolve(orig)
+        if not src: print('skip (no icon file)', app_id, orig); continue
+        dest = f'{OUT}/{app_id[:-8]}.png'
+        kind = normalize(src, dest)
+        if not src_file.startswith(APPS):
+            shutil.copy(src_file, local)
+            k = keyfile(local)
+        k.set_string('Desktop Entry', 'Icon', dest)
+        k.save_to_file(local)
+        print(f'{kind:5}  {app_id}')
+    if restore: state = {}
+    save_state(state)
+    os.system(f'update-desktop-database -q {APPS} 2>/dev/null')
+
+main()

@@ -1,0 +1,392 @@
+#!/usr/bin/python3
+"""Choose which apps the Caelestia desktop uses: browser, files, terminal, editor, music and the dock.
+
+  caelestia-apps                     show the current choices and what they resolve to
+  caelestia-apps list ROLE           list the installed apps that fit a role
+  caelestia-apps set ROLE APP        APP is a desktop id, part of an app's name, auto or none
+  caelestia-apps dock VALUE          keep, auto, or a comma list of apps (ids or names)
+  caelestia-apps pick                choose everything from numbered menus
+  caelestia-apps apply               apply ~/.config/caelestia-gnome/apps.conf after editing it by hand
+
+ROLE is one of: browser, files, terminal, editor, music.
+
+"auto" means "use what this computer already uses": the system default stays as it is, and nothing
+is written for that role. Naming an app makes it the system default for that role. The music app is
+the one the media panel opens when you press play with nothing playing.
+
+The dock is GNOME's favourites bar: "keep" leaves your pinned apps alone, "auto" pins the five apps
+above, and a list pins exactly those apps.
+"""
+import json, os, shutil, subprocess, sys
+import gi
+from gi.repository import Gio, GLib
+try:
+    gi.require_version('GioUnix', '2.0')
+    from gi.repository import GioUnix
+    DesktopAppInfo = GioUnix.DesktopAppInfo
+except (ValueError, ImportError):
+    DesktopAppInfo = Gio.DesktopAppInfo
+
+HOME = os.path.expanduser('~')
+CONFIG_DIR = os.path.join(GLib.get_user_config_dir(), 'caelestia-gnome')
+CONF = os.path.join(CONFIG_DIR, 'apps.conf')
+JSON_CONF = os.path.join(CONFIG_DIR, 'config.json')
+BACKUP = os.path.join(GLib.get_user_data_dir(), 'caelestia-rice', 'backup', 'apps')
+ROLES = ['browser', 'files', 'terminal', 'editor', 'music']
+TITLES = {'browser': 'Web browser', 'files': 'File manager', 'terminal': 'Terminal',
+          'editor': 'Text editor', 'music': 'Music app'}
+MIME = {'browser': ['x-scheme-handler/http', 'x-scheme-handler/https', 'text/html'],
+        'files': ['inode/directory'], 'editor': ['text/plain']}
+DEFAULTS = {'browser': 'auto', 'files': 'auto', 'terminal': 'auto', 'editor': 'auto', 'music': 'auto',
+            'dock': 'keep', 'dock_icons': 'on'}
+# Tried in this order when "auto" has no system default to follow.
+TERMINALS = ['org.gnome.Ptyxis', 'org.gnome.Console', 'org.gnome.Terminal', 'com.mitchellh.ghostty', 'kitty',
+             'Alacritty', 'org.wezfurlong.wezterm', 'foot', 'com.gexperts.Tilix', 'org.kde.konsole', 'xterm']
+MUSIC = ['spotify', 'spotify_spotify', 'com.spotify.Client', 'youtube-music', 'youtube-music-desktop-app',
+         'th-ch.youtube-music', 'tidal-hifi', 'com.mastermindzh.tidal-hifi', 'cider', 'sh.cider.Cider',
+         'org.gnome.Rhythmbox3', 'rhythmbox', 'org.gnome.Music', 'io.bassi.Amberol', 'org.gnome.Lollypop',
+         'com.github.neithern.g4music', 'org.strawberrymusicplayer.strawberry', 'audacious', 'elisa',
+         'org.kde.elisa', 'vlc', 'vlc_vlc', 'org.videolan.VLC']
+TEMPLATE = """# Apps the Caelestia desktop uses. Edit, then run: caelestia-apps apply
+# (or let the tool write this file: caelestia-apps pick)
+#
+# Each value is a desktop id such as firefox.desktop (see: caelestia-apps list browser),
+# or "auto" to keep using whatever this computer already uses.
+
+browser = {browser}
+files = {files}
+terminal = {terminal}
+editor = {editor}
+
+# Opens when you press play with nothing playing. "none" turns that off.
+music = {music}
+
+# The dock (GNOME favourites): keep = leave your pinned apps alone, auto = pin the five apps above,
+# or a comma list of desktop ids.
+dock = {dock}
+
+# on = give every dock icon the same rounded tile; off = leave app icons as they are.
+dock_icons = {dock_icons}
+"""
+
+
+def load():
+    conf = dict(DEFAULTS)
+    try:
+        for line in open(CONF):
+            line = line.split('#', 1)[0].strip()
+            if '=' in line:
+                k, v = (s.strip() for s in line.split('=', 1))
+                if k in conf and v:
+                    conf[k] = v
+    except OSError:
+        pass
+    return conf
+
+
+def save(conf):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(CONF + '.tmp', 'w') as f:
+        f.write(TEMPLATE.format(**conf))
+    os.replace(CONF + '.tmp', CONF)
+
+
+def app(app_id):
+    """The installed app for a desktop id (with or without .desktop), or None."""
+    if not app_id:
+        return None
+    if not app_id.endswith('.desktop'):
+        app_id += '.desktop'
+    try:
+        info = DesktopAppInfo.new(app_id)
+    except TypeError:
+        return None
+    return info if info and not info.get_nodisplay() else None
+
+
+def all_apps():
+    return sorted((a for a in Gio.AppInfo.get_all() if a.should_show()), key=lambda a: a.get_name().lower())
+
+
+def categories(a):
+    return set(filter(None, (a.get_categories() or '').split(';')))
+
+
+def candidates(role):
+    """Installed apps that fit a role, most likely first."""
+    if role in MIME:
+        seen, out = set(), []
+        for a in Gio.AppInfo.get_all_for_type(MIME[role][1 if role == 'browser' else 0]):
+            if a.get_id() not in seen and a.should_show():
+                seen.add(a.get_id())
+                out.append(a)
+        return out
+    if role == 'terminal':
+        found = [a for a in all_apps() if 'TerminalEmulator' in categories(a)]
+        rank = {f'{t}.desktop': i for i, t in enumerate(TERMINALS)}
+        return sorted(found, key=lambda a: rank.get(a.get_id(), len(rank)))
+    known = [a for a in (app(m) for m in MUSIC) if a]
+    ids = {a.get_id() for a in known}
+    players = [a for a in all_apps() if a.get_id() not in ids and
+               'Audio' in categories(a) and ({'Music', 'Player'} & categories(a)) and
+               not ({'Video', 'Recorder', 'Mixer', 'Settings'} & categories(a))]
+    return known + players
+
+
+def system_terminal():
+    """What xdg-terminal-exec would start: the first usable line of the terminal lists."""
+    desktops = [d.lower() for d in os.environ.get('XDG_CURRENT_DESKTOP', '').split(':') if d]
+    dirs = [GLib.get_user_config_dir(), *GLib.get_system_config_dirs(),
+            *(os.path.join(d, 'xdg-terminal-exec') for d in GLib.get_system_data_dirs())]
+    for d in dirs:
+        for name in [*(f'{x}-xdg-terminals.list' for x in desktops), 'xdg-terminals.list']:
+            try:
+                lines = open(os.path.join(d, name)).read().split('\n')
+            except OSError:
+                continue
+            for line in lines:
+                line = line.strip()
+                if line and line[0] not in '#-+/':
+                    found = app(line.split(':')[0])
+                    if found:
+                        return found
+    return None
+
+
+def resolve(role, value):
+    """The app a setting stands for right now, or None."""
+    if value == 'none':
+        return None
+    if value != 'auto':
+        return app(value)
+    if role == 'browser':
+        return Gio.AppInfo.get_default_for_uri_scheme('https') or next(iter(candidates(role)), None)
+    if role in MIME:
+        return Gio.AppInfo.get_default_for_type(MIME[role][0], False) or next(iter(candidates(role)), None)
+    if role == 'terminal':
+        return system_terminal() or next(iter(candidates(role)), None)
+    return next(iter(candidates(role)), None)
+
+
+def find(text, role=None):
+    """A desktop id from an id, or from part of an app's name. Exits with the choices if unclear."""
+    exact = app(text)
+    if exact:
+        return exact.get_id()
+    low = text.lower()
+    pool = all_apps()
+    hits = [a for a in pool if low == a.get_name().lower()] or \
+           [a for a in pool if low in a.get_name().lower() or low in a.get_id().lower()]
+    if len(hits) == 1:
+        return hits[0].get_id()
+    if not hits:
+        sys.exit(f'No installed app matches "{text}".' + (f' See: caelestia-apps list {role}' if role else ''))
+    sys.exit(f'"{text}" matches several apps, use the id:\n' + '\n'.join(f'  {a.get_id():<48} {a.get_name()}' for a in hits[:15]))
+
+
+def backup_once(path):
+    """Keep the first copy of a file this tool changes, for caelestia-restore."""
+    os.makedirs(BACKUP, exist_ok=True)
+    dest = os.path.join(BACKUP, os.path.basename(path))
+    if os.path.exists(dest) or os.path.exists(dest + '.absent'):
+        return
+    if os.path.exists(path):
+        shutil.copy2(path, dest)
+    else:
+        open(dest + '.absent', 'w').close()
+
+
+def set_terminal(info):
+    """Put the app first in the user's terminal list (read by xdg-terminal-exec, and so by Ctrl+Alt+T)."""
+    path = os.path.join(GLib.get_user_config_dir(), 'xdg-terminals.list')
+    backup_once(path)
+    try:
+        rest = [l for l in open(path).read().split('\n') if l.strip() and l.split(':')[0].strip() != info.get_id()]
+    except OSError:
+        rest = []
+    with open(path, 'w') as f:
+        f.write('\n'.join([info.get_id(), *rest]) + '\n')
+    # A desktop-specific list in the same folder would win over the general one.
+    for d in os.environ.get('XDG_CURRENT_DESKTOP', '').split(':'):
+        special = os.path.join(GLib.get_user_config_dir(), f'{d.lower()}-xdg-terminals.list')
+        if d and os.path.exists(special):
+            backup_once(special)
+            shutil.copy(path, special)
+
+
+def set_music(app_id):
+    try:
+        data = json.load(open(JSON_CONF))
+    except (OSError, ValueError):
+        data = {}
+    if data.get('musicApp') == app_id:
+        return False
+    data['musicApp'] = app_id
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(JSON_CONF + '.tmp', 'w') as f:
+        json.dump(data, f, indent=1)
+    os.replace(JSON_CONF + '.tmp', JSON_CONF)
+    return True
+
+
+def dock_ids(conf):
+    if conf['dock'] == 'keep':
+        return None
+    if conf['dock'] == 'auto':
+        found = [resolve(r, conf[r]) for r in ROLES]
+        ids = [a.get_id() for a in found if a]
+    else:
+        ids = [x.strip() if x.strip().endswith('.desktop') else x.strip() + '.desktop' for x in conf['dock'].split(',') if x.strip()]
+    return list(dict.fromkeys(ids))
+
+
+def apply(conf, quiet=False):
+    say = (lambda *a: None) if quiet else print
+    problems = []
+    for role in ROLES:
+        value = conf[role]
+        if role == 'music':
+            found = resolve(role, value)
+            if value not in ('auto', 'none') and not found:
+                problems.append(f'music: {value} is not installed')
+            if set_music(found.get_id() if found else ''):
+                say('music app changes at your next login')
+            continue
+        if value == 'auto':
+            continue
+        info = app(value)
+        if not info:
+            problems.append(f'{role}: {value} is not installed, left as it was')
+            continue
+        if role == 'terminal':
+            set_terminal(info)
+            continue
+        backup_once(os.path.join(GLib.get_user_config_dir(), 'mimeapps.list'))
+        for mime in MIME[role]:
+            try:
+                info.set_as_default_for_type(mime)
+            except GLib.Error as e:
+                problems.append(f'{role}: {e.message}')
+    ids = dock_ids(conf)
+    if ids is not None:
+        missing = [i for i in ids if not app(i)]
+        ids = [i for i in ids if i not in missing]
+        problems += [f'dock: {i} is not installed, skipped' for i in missing]
+        shell = Gio.Settings.new('org.gnome.shell')
+        if ids and shell.get_strv('favorite-apps') != ids:
+            shell.set_strv('favorite-apps', ids)
+            Gio.Settings.sync()
+    icons = os.path.join(HOME, '.local/bin/caelestia-icons')
+    if os.path.exists(icons):
+        arg = [] if conf['dock_icons'] != 'off' else ['--restore']
+        r = subprocess.run([icons, *arg], capture_output=True, text=True)
+        if r.returncode:
+            problems.append('dock icons: ' + (r.stderr.strip().split('\n')[-1] if r.stderr.strip() else 'caelestia-icons failed'))
+    for p in problems:
+        print('warning:', p, file=sys.stderr)
+    return not problems
+
+
+def show(conf):
+    print(f'{"":<14}{"setting":<12}uses')
+    for role in ROLES:
+        found = resolve(role, conf[role])
+        what = f'{found.get_name()}  ({found.get_id()})' if found else ('nothing' if conf[role] in ('auto', 'none') else 'NOT INSTALLED')
+        setting = conf[role] if conf[role] in ('auto', 'none') else 'chosen'
+        print(f'{TITLES[role]:<14}{setting:<12}{what}')
+    ids = dock_ids(conf)
+    if ids is None:
+        ids = Gio.Settings.new('org.gnome.shell').get_strv('favorite-apps')
+    names = [(app(i).get_name() if app(i) else f'{i} (not installed)') for i in ids]
+    print(f'{"Dock":<14}{conf["dock"] if conf["dock"] in ("keep", "auto") else "chosen":<12}{", ".join(names) or "empty"}')
+    print(f'{"Dock icons":<14}{conf["dock_icons"]:<12}{"same rounded tile for every app" if conf["dock_icons"] != "off" else "left as they are"}')
+    print(f'\nChange with: caelestia-apps pick   (or edit {CONF.replace(HOME, "~")})')
+
+
+def ask(prompt):
+    try:
+        return input(prompt).strip()
+    except EOFError:
+        print()
+        return ''
+
+
+def pick(conf):
+    for role in ROLES:
+        options = candidates(role)
+        now = resolve(role, conf[role])
+        print(f'\n{TITLES[role]}  (now: {now.get_name() if now else "nothing"}, setting: {conf[role]})')
+        for i, a in enumerate(options, 1):
+            print(f'  {i:>2}  {a.get_name():<34} {a.get_id()}')
+        extra = ', n = none' if role == 'music' else ''
+        answer = ask(f'  number, a = auto{extra}, part of another app\'s name, Enter = no change: ')
+        if not answer:
+            continue
+        if answer.lower() == 'a':
+            conf[role] = 'auto'
+        elif answer.lower() == 'n' and role == 'music':
+            conf[role] = 'none'
+        elif answer.isdigit() and 1 <= int(answer) <= len(options):
+            conf[role] = options[int(answer) - 1].get_id()
+        else:
+            low = answer.lower()
+            hits = [a for a in all_apps() if low in a.get_name().lower() or low in a.get_id().lower()]
+            if len(hits) == 1:
+                conf[role] = hits[0].get_id()
+                print(f'  -> {hits[0].get_name()}')
+            else:
+                print('  no single match, left as it was' if not hits else
+                      '  several match, left as it was: ' + ', '.join(a.get_name() for a in hits[:8]))
+    print(f'\nDock  (setting: {conf["dock"] if conf["dock"] in ("keep", "auto") else "chosen"})')
+    print('   k  keep the apps you have pinned now\n   a  pin the five apps chosen above')
+    answer = ask('  k, a, or Enter = no change: ').lower()
+    if answer in ('k', 'a'):
+        conf['dock'] = 'keep' if answer == 'k' else 'auto'
+    answer = ask(f'\nSame rounded tile for every dock icon? (now: {conf["dock_icons"]})  y, n, or Enter = no change: ').lower()
+    if answer in ('y', 'n'):
+        conf['dock_icons'] = 'on' if answer == 'y' else 'off'
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else 'show'
+    conf = load()
+    if cmd in ('-h', '--help', 'help'):
+        print(__doc__.strip())
+    elif cmd == 'show':
+        show(conf)
+    elif cmd == 'list' and len(args) == 2 and args[1] in ROLES:
+        for a in candidates(args[1]):
+            print(f'{a.get_id():<52} {a.get_name()}')
+    elif cmd == 'set' and len(args) == 3 and args[1] in ROLES:
+        role, value = args[1], args[2]
+        if value == 'none' and role != 'music':
+            sys.exit('Only music can be none. Use auto to keep the system default.')
+        conf[role] = value if value in ('auto', 'none') else find(value, role)
+        save(conf)
+        ok = apply(conf, quiet=True)
+        show(conf)
+        sys.exit(0 if ok else 1)
+    elif cmd == 'dock' and len(args) >= 2:
+        value = ','.join(args[1:])
+        conf['dock'] = value if value in ('keep', 'auto') else ','.join(find(x.strip()) for x in value.split(',') if x.strip())
+        save(conf)
+        ok = apply(conf, quiet=True)
+        show(conf)
+        sys.exit(0 if ok else 1)
+    elif cmd == 'pick':
+        pick(conf)
+        save(conf)
+        apply(conf)
+        print()
+        show(conf)
+    elif cmd == 'apply':
+        if not os.path.exists(CONF):
+            save(conf)
+        sys.exit(0 if apply(conf, quiet='--quiet' in args) else 1)
+    else:
+        sys.exit(__doc__.strip())
+
+
+if __name__ == '__main__':
+    main()

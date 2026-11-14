@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.caelestia-gnome" path="/org/gnome/shell/extensions/caelestia-gnome/">
+    <key name="toggle-launcher" type="as"><default>['&lt;Super&gt;space']</default><summary>Toggle launcher</summary></key>
+    <key name="toggle-dashboard" type="as"><default>['&lt;Super&gt;d']</default><summary>Toggle dashboard</summary></key>
+    <key name="toggle-sidebar" type="as"><default>['&lt;Super&gt;n']</default><summary>Toggle sidebar</summary></key>
+    <key name="toggle-session" type="as"><default>['&lt;Super&gt;x']</default><summary>Toggle session menu</summary></key>
+  </schema>
+</schemalist>

@@ -1,0 +1,8 @@
+{
+  "uuid": "caelestia-gnome@szyx",
+  "name": "Caelestia for GNOME",
+  "description": "The Caelestia desktop shell rebuilt for GNOME: fused left bar and screen border, drawers, launcher, dashboard, sidebar, OSD and session menu with wallpaper colours.",
+  "shell-version": ["50"],
+  "settings-schema": "org.gnome.shell.extensions.caelestia-gnome",
+  "version": 1
+}

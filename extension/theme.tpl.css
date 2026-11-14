@@ -1,0 +1,261 @@
+/* Colours are filled in by caelestia-scheme. */
+.cae-strip, .cae-bar { background-color: {{surface}}; }
+.cae-icon { font-family: "Material Symbols Rounded"; color: {{onSurface}}; font-weight: 400; }
+.cae-primary { color: {{primary}}; } .cae-secondary { color: {{secondary}}; }
+.cae-tertiary { color: {{tertiary}}; } .cae-error { color: {{error}}; }
+.cae-dim, .cae-bar-dim { color: {{onSurfaceVariant}}; }
+.cae-drawer, .cae-drawer * { font-family: "Google Sans Flex"; }
+.cae-bar { padding: 10px 0; spacing: 8px; font-family: "Google Sans Flex"; }
+.cae-drawer .cae-icon { font-family: "Material Symbols Rounded"; }
+
+.cae-pill { background-color: {{surfaceContainer}}; border-radius: 20px; }
+.cae-logo { width: 40px; height: 36px; border-radius: 18px; margin: 0 {{b}}px; color: {{tertiary}}; transition-duration: 180ms; }
+.cae-logo .cae-icon { color: {{tertiary}}; }
+.cae-logo:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-bar > .cae-pill { margin: 0 {{b}}px; }
+.cae-drawer-body { background-color: {{surface}}; }
+.cae-ws-active { background-color: {{primary}}; border-radius: 15px; }
+.cae-ws-occupied { background-color: {{surfaceContainerHighest}}; border-radius: 15px; }
+.cae-ws-bridge { background-color: {{surfaceContainerHighest}}; }
+.cae-ws-button { border-radius: 15px; }
+.cae-ws-label { font-size: 13px; color: {{outline}}; }
+.cae-ws-label.occupied { color: {{onSurface}}; }
+.cae-ws-label.active { color: {{onPrimary}}; font-weight: 700; }
+.cae-active-window { spacing: 8px; }
+.cae-active-title { font-size: 13px; color: {{onSurfaceVariant}}; }
+.cae-tray { padding: 6px 0; spacing: 4px; }
+.cae-tray .panel-button { padding: 2px 8px; background: none; box-shadow: none; }
+.cae-tray .system-status-icon { icon-size: 18px; padding: 0; }
+.cae-clock { padding: 10px 0; transition-duration: 180ms; }
+.cae-clock:hover, .cae-status:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-clock-inner { spacing: 2px; }
+.cae-clock-text { font-size: 14px; font-weight: 600; color: {{tertiary}}; }
+.cae-status { padding: 10px 0; transition-duration: 180ms; }
+.cae-status-inner { spacing: 8px; }
+.cae-power { width: 40px; height: 36px; margin: 0 {{b}}px; border-radius: 18px; transition-duration: 180ms; }
+.cae-power:hover { background-color: {{errorContainer}}; }
+
+.cae-flat { border-radius: 16px; padding: 6px; transition-duration: 160ms; }
+.cae-flat:checked { background-color: {{primaryContainer}}; }
+.cae-flat:checked .cae-icon { color: {{onPrimaryContainer}}; }
+.cae-flat:hover { background-color: {{surfaceContainerHighest}}; }
+.cae-card { background-color: {{surfaceContainer}}; border-radius: 28px; padding: 16px; }
+
+.cae-launcher { padding: 16px 16px 8px; spacing: 12px; }
+.cae-launcher-list { spacing: 2px; }
+.cae-launcher-item { border-radius: 20px; padding: 0 12px; }
+.cae-launcher-hl { background-color: {{surfaceContainerHigh}}; border-radius: 20px; }
+.cae-launcher-row { spacing: 14px; }
+.cae-launcher-name { font-size: 15px; color: {{onSurface}}; }
+.cae-launcher-desc { font-size: 12px; color: {{outline}}; }
+.cae-launcher-empty { color: {{onSurfaceVariant}}; padding: 28px; font-size: 15px; }
+.cae-search { background-color: {{surfaceContainer}}; border-radius: 28px; padding: 6px 18px; spacing: 12px; }
+.cae-search-entry { background: none; border: none; box-shadow: none; color: {{onSurface}}; font-size: 15px; padding: 8px 0; caret-color: {{primary}}; selected-color: {{onPrimary}}; selection-background-color: {{primary}}; }
+.cae-search-entry StLabel.hint-text { color: {{outline}}; }
+
+.cae-dash { padding: 8px 8px 8px; spacing: 10px; }
+.cae-grid { spacing: 12px; height: 336px; }
+.cae-grid-col { spacing: 12px; }
+.cae-grid-row { spacing: 12px; }
+.cae-now { spacing: 2px; padding: 18px 20px; }
+.cae-now-time { font-size: 44px; font-weight: 600; color: {{onSurface}}; }
+.cae-now-date { font-size: 13px; color: {{onSurfaceVariant}}; }
+.cae-now-weather { spacing: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid {{outlineVariant}}; }
+.cae-system { spacing: 14px; padding: 18px 20px; }
+.cae-meter { spacing: 6px; }
+.cae-meter-name { font-size: 13px; color: {{onSurfaceVariant}}; }
+.cae-meter-value { font-size: 13px; font-weight: 600; color: {{onSurface}}; }
+.cae-meter-track { background-color: {{surfaceContainerHigh}}; border-radius: 3px; }
+.cae-meter-fill { background-color: {{primary}}; border-radius: 3px; }
+.cae-cal-card { padding: 12px 16px; }
+.cae-weather-temp { font-size: 15px; font-weight: 600; color: {{onSurface}}; }
+.cae-weather-desc { font-size: 12px; color: {{onSurfaceVariant}}; }
+.cae-cal { spacing: 4px; min-width: 300px; }
+.cae-cal-title { font-size: 15px; font-weight: 600; color: {{primary}}; }
+.cae-cal-dow { font-size: 12px; color: {{tertiary}}; padding: 1px 0; }
+.cae-cal-day { font-size: 13px; color: {{onSurface}}; min-width: 26px; padding: 1px 0; border-radius: 10px; text-align: center; }
+.cae-cal-day.today { background-color: {{primary}}; color: {{onPrimary}}; font-weight: 700; }
+.cae-cal-btn { border-radius: 10px; padding: 1px 4px 1px; transition-duration: 120ms; }
+.cae-cal-btn:hover, .cae-cal-btn:checked { background-color: {{surfaceContainerHighest}}; }
+.cae-cal-cell { spacing: 1px; }
+.cae-cal-dot { width: 4px; height: 4px; border-radius: 2px; background-color: {{tertiary}}; }
+.cae-cal-agenda-head { font-size: 12px; font-weight: 600; color: {{tertiary}}; padding: 2px; }
+.cae-cal-lower { height: 94px; spacing: 2px; }
+.cae-cal-agenda-line { spacing: 8px; }
+.cae-cal-agenda { spacing: 1px; }
+.cae-cal-none { font-size: 12px; color: {{onSurfaceVariant}}; padding: 3px 2px; }
+.cae-cal-event { border-radius: 8px; padding: 3px 6px; transition-duration: 120ms; }
+.cae-cal-event:hover { background-color: {{surfaceContainerHighest}}; }
+.cae-cal-event-inner { spacing: 10px; }
+.cae-cal-event-time { font-size: 12px; color: {{primary}}; min-width: 40px; }
+.cae-cal-event-name { font-size: 13px; color: {{onSurface}}; }
+.cae-cal-connect { border-radius: 9px; padding: 2px 8px; background-color: {{surfaceContainerHigh}}; transition-duration: 120ms; }
+.cae-cal-connect:hover { background-color: {{surfaceContainerHighest}}; }
+.cae-cal-connect-text { font-size: 11px; color: {{onSurface}}; }
+.cae-media-card { border-radius: 28px; spacing: 4px; padding: 14px 16px; }
+.cae-media-text { spacing: 1px; }
+.cae-media-title { font-size: 15px; font-weight: 600; color: {{primary}}; padding-top: 6px; }
+.cae-media-album { font-size: 13px; color: {{outline}}; }
+.cae-media-artist { font-size: 13px; color: {{secondary}}; }
+.cae-media-ctl { spacing: 6px; padding-top: 6px; }
+.cae-play { background-color: {{primary}}; border-radius: 20px; padding: 6px 14px; transition-duration: 160ms; }
+.cae-play .cae-icon { color: {{onPrimary}}; }
+.cae-cover-round { border-radius: 86px; background-color: {{surfaceContainerHigh}}; }
+.cae-cover-big { border-radius: 40px; background-color: {{surfaceContainer}}; margin: 20px; }
+.cae-cover-big.art { margin: 0; background-color: transparent; }
+.cae-media-page { border-radius: 28px; background-color: {{surfaceContainer}}; }
+.cae-media-backdrop { border-radius: 28px; }
+.cae-media-scrim { background-color: {{scrim}}; border-radius: 28px; }
+.cae-media-row { spacing: 4px; }
+.cae-source { border-radius: 10px; padding: 2px 8px; background-color: {{surfaceContainerHigh}}; transition-duration: 160ms; }
+.cae-source:hover { background-color: {{surfaceContainerHighest}}; }
+.cae-media-source { font-size: 11px; color: {{onSurfaceVariant}}; }
+.cae-media-times { padding-bottom: 4px; }
+.cae-seek-knob { background-color: {{primary}}; border-radius: 8px; }
+.cae-lyrics { padding: 0; }
+.cae-lyric-btn { padding: 7px 12px; border-radius: 12px; text-align: left; transition-duration: 140ms; }
+.cae-lyric-btn:hover { background-color: {{hoverWash}}; }
+.cae-lyric { font-size: 18px; font-weight: 600; color: {{onSurface}}; }
+.cae-lyric.plain { font-size: 14px; font-weight: 400; color: {{onSurfaceVariant}}; padding: 12px; }
+.cae-lyrics-msg { font-size: 14px; color: {{onSurfaceVariant}}; padding: 12px; }
+/* Room on every side so the line never touches the notch's curved edges. */
+.cae-lyric-pill { padding: 8px 26px 14px; spacing: 10px; }
+.cae-lyric-pill-art { width: 24px; height: 24px; border-radius: 7px; background-color: {{surfaceContainerHigh}}; }
+.cae-lyric-pin { border-radius: 10px; padding: 3px; transition-duration: 150ms; }
+.cae-lyric-pin .cae-icon { color: {{onSurfaceVariant}}; }
+.cae-lyric-pin:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-lyric-pin:checked .cae-icon { color: {{primary}}; }
+.cae-lyric-pill-text { font-size: 14px; font-weight: 600; color: {{primary}}; max-width: 680px; }
+.cae-media-big { spacing: 6px; padding: 0 16px 0 4px; }
+.cae-media-big-title { font-size: 24px; font-weight: 600; color: {{primary}}; }
+.cae-media-big-artist { font-size: 16px; color: {{secondary}}; }
+.cae-media-pos { font-size: 12px; color: {{onSurfaceVariant}}; }
+.cae-progress { background-color: {{surfaceContainerHigh}}; border-radius: 3px; }
+.cae-progress-fill { background-color: {{primary}}; border-radius: 3px; }
+.cae-perf { spacing: 6px; }
+.cae-perf-big { font-size: 22px; font-weight: 600; color: {{onSurface}}; }
+.cae-perf-name { font-size: 15px; font-weight: 600; color: {{onSurface}}; }
+.cae-perf-sub { font-size: 12px; color: {{onSurfaceVariant}}; }
+.cae-net-row { spacing: 10px; padding: 12px 0; }
+.cae-net-speed { font-size: 18px; color: {{onSurface}}; }
+.cae-tabs { spacing: 24px; }
+.cae-tab { padding: 6px 18px; border-radius: 16px; transition-duration: 180ms; }
+.cae-tab:hover { background-color: {{surfaceContainer}}; }
+.cae-tab .cae-icon { color: {{onSurfaceVariant}}; }
+.cae-tab-label { font-size: 12px; color: {{onSurfaceVariant}}; }
+.cae-tab:checked .cae-icon, .cae-tab:checked .cae-tab-label { color: {{primary}}; }
+
+.cae-sidebar { padding: 16px; spacing: 12px; }
+.cae-side-head { padding: 0 8px; }
+.cae-side-title { font-size: 18px; font-weight: 600; color: {{onSurface}}; }
+.cae-notif-list { spacing: 8px; }
+.cae-notif-empty { spacing: 8px; padding: 80px 0; }
+.cae-notif { background-color: {{surfaceContainer}}; border-radius: 20px; padding: 12px; text-align: left; transition-duration: 160ms; }
+.cae-notif:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-notif-row { spacing: 12px; }
+.cae-notif-title { font-size: 13px; font-weight: 600; color: {{onSurface}}; }
+.cae-notif-time { font-size: 11px; color: {{outline}}; padding-left: 8px; }
+.cae-notif-body { font-size: 12px; color: {{onSurfaceVariant}}; }
+.cae-utilities { spacing: 8px; }
+.cae-toggle { background-color: {{surfaceContainerHigh}}; border-radius: 20px; padding: 10px 0; transition-duration: 200ms; }
+.cae-toggle:hover { background-color: {{surfaceContainerHighest}}; }
+.cae-toggle:checked { background-color: {{primary}}; border-radius: 14px; }
+.cae-toggle:checked .cae-icon { color: {{onPrimary}}; }
+.cae-side-foot { spacing: 8px; }
+.cae-slider { background-color: {{surfaceContainerHigh}}; border-radius: 15px; }
+.cae-slider-fill { background-color: {{primary}}; border-radius: 15px; }
+.cae-slider-icon { color: {{onPrimary}}; }
+
+.cae-osd { padding: 16px 16px 16px 8px; spacing: 10px; }
+
+
+.cae-popout { padding: 4px 16px 4px 12px; spacing: 10px; }
+.cae-pop-head { spacing: 12px; }
+.cae-pop-title { font-size: 15px; font-weight: 600; color: {{onSurface}}; }
+.cae-pop-sub { font-size: 12px; color: {{onSurfaceVariant}}; }
+.cae-pop-row { spacing: 8px; }
+.cae-pop-value { font-size: 14px; color: {{onSurface}}; }
+.cae-pop-btn { background-color: {{surfaceContainerHigh}}; border-radius: 14px; padding: 7px 14px; transition-duration: 160ms; }
+.cae-pop-btn:hover { background-color: {{surfaceContainerHighest}}; }
+.cae-pop-action { font-size: 13px; color: {{onSurface}}; }
+.cae-session { padding: 10px 14px 10px 8px; spacing: 2px; min-width: 216px; }
+.cae-session-row { border-radius: 16px; padding: 10px 14px; transition-duration: 160ms; }
+.cae-session-row:hover, .cae-session-row:focus { background-color: {{surfaceContainerHigh}}; }
+.cae-session-row:active { background-color: {{surfaceContainerHighest}}; }
+.cae-session-row-inner { spacing: 14px; }
+.cae-session-label { font-size: 14px; color: {{onSurface}}; }
+.cae-session-row .cae-icon { color: {{onSurfaceVariant}}; }
+.cae-session-row.primary { background-color: {{primaryContainer}}; }
+.cae-session-row.primary .cae-icon, .cae-session-row.primary .cae-session-label { color: {{onPrimaryContainer}}; }
+.cae-session-row.primary:hover, .cae-session-row.primary:focus { background-color: {{primary}}; }
+.cae-session-row.primary:hover .cae-icon, .cae-session-row.primary:hover .cae-session-label,
+.cae-session-row.primary:focus .cae-icon, .cae-session-row.primary:focus .cae-session-label { color: {{onPrimary}}; }
+.cae-session-row.danger .cae-icon { color: {{error}}; }
+.cae-session-row.danger:hover, .cae-session-row.danger:focus { background-color: {{errorContainer}}; }
+.cae-session-sep { height: 1px; margin: 6px 8px; background-color: {{outlineVariant}}; }
+.cae-pop-list { spacing: 2px; }
+.cae-pop-scroll { max-height: 320px; -st-vfade-offset: 18px; }
+.cae-pop-item { border-radius: 12px; padding: 7px 10px; transition-duration: 120ms; }
+.cae-pop-item:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-pop-item:checked { background-color: {{surfaceContainerHigh}}; }
+.cae-pop-item-inner { spacing: 12px; }
+.cae-pop-item-icon { color: {{onSurfaceVariant}}; }
+.cae-pop-item-name { font-size: 14px; color: {{onSurface}}; }
+.cae-pop-item-sub { font-size: 11px; color: {{onSurfaceVariant}}; }
+.cae-pop-section { font-size: 11px; font-weight: 600; color: {{onSurfaceVariant}}; padding: 8px 10px 3px; }
+.cae-phonelink { spacing: 10px; }
+.cae-pop-divider { height: 1px; background-color: {{outlineVariant}}; margin: 2px 4px 0; }
+.cae-link-head { spacing: 12px; padding: 0 2px 0 10px; }
+.cae-link-title { font-size: 14px; font-weight: 600; color: {{onSurface}}; }
+.cae-qr-box { spacing: 8px; padding: 6px 0 2px; }
+.cae-qr-box .cae-pop-sub { text-align: center; }
+.cae-qr-card { background-color: #ffffff; border-radius: 16px; padding: 10px; }
+.cae-pop-note { color: {{error}}; font-weight: 400; }
+.cae-net-head { spacing: 10px; padding: 6px 2px 2px 10px; }
+.cae-pop-gear { border-radius: 14px; padding: 5px; transition-duration: 120ms; }
+.cae-pop-gear:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-switch { width: 40px; height: 24px; padding: 0 3px; border-radius: 12px; background-color: {{surfaceContainerHighest}}; transition-duration: 180ms; }
+.cae-switch:checked { background-color: {{primary}}; }
+.cae-switch-knob { width: 18px; height: 18px; border-radius: 9px; background-color: {{outline}}; transition-duration: 180ms; }
+.cae-switch:checked .cae-switch-knob { background-color: {{onPrimary}}; }
+.cae-pop-foot-inner { spacing: 8px; }
+.cae-pop-btn-small { padding: 5px 12px; }
+.cae-phone-tile { padding: 10px 8px; }
+.cae-phone-head-gear { margin-left: 4px; }
+.cae-pop-preview { background-color: {{surfaceContainer}}; border-radius: 14px; }
+.cae-chip { background-color: {{surfaceContainerHigh}}; border-radius: 14px; padding: 7px 12px; transition-duration: 180ms; }
+.cae-chip:hover { background-color: {{surfaceContainerHighest}}; }
+.cae-chip:checked { background-color: {{primary}}; }
+.cae-chip:checked .cae-icon, .cae-chip:checked .cae-chip-label { color: {{onPrimary}}; }
+.cae-chip-inner { spacing: 6px; }
+.cae-chip-label { font-size: 13px; color: {{onSurface}}; }
+
+.cae-themes { padding: 2px 4px; }
+.cae-themes-inner { spacing: 10px; padding-right: 8px; }
+.cae-theme-head { padding: 6px 2px 0; }
+.cae-theme-title { font-size: 15px; font-weight: 600; color: {{primary}}; }
+.cae-theme-save { spacing: 6px; }
+.cae-theme-entry { background-color: {{surfaceContainer}}; border-radius: 14px; border: none; box-shadow: none; padding: 5px 12px; font-size: 13px; color: {{onSurface}}; caret-color: {{primary}}; }
+.cae-theme-entry StLabel.hint-text { color: {{outline}}; }
+.cae-theme-card { background-color: {{surfaceContainer}}; border-radius: 16px; padding: 8px; transition-duration: 180ms; text-align: left; }
+.cae-theme-card:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-theme-card.active { background-color: {{surfaceContainerHighest}}; }
+.cae-theme-card-inner { spacing: 6px; }
+.cae-theme-name { font-size: 13px; font-weight: 600; color: {{onSurface}}; }
+.cae-theme-sub { font-size: 11px; color: {{outline}}; }
+.cae-theme-chips { spacing: 8px; }
+.cae-theme-chip-title { font-size: 13px; color: {{onSurfaceVariant}}; }
+.cae-wall-row { spacing: 10px; padding-bottom: 8px; }
+.cae-wall { border-radius: 14px; padding: 3px; transition-duration: 180ms; }
+.cae-wall:hover { background-color: {{surfaceContainerHigh}}; }
+.cae-wall.active { background-color: {{primary}}; }
+.cae-wall-thumb { border-radius: 11px; }
+
+/* GNOME surfaces that remain in use */
+.notification-banner { margin: 10px 10px 0 0; }
+.notification-banner, .notification-banner .message { background-color: {{surfaceContainer}}; border-radius: 20px; color: {{onSurface}}; box-shadow: none; }
+.popup-menu-content, .popup-menu-boxpointer { background-color: {{surfaceContainerHigh}}; border-radius: 20px; color: {{onSurface}}; }
+.popup-menu-item:hover { background-color: {{surfaceContainerHighest}}; }
+.modal-dialog { background-color: {{surfaceContainer}}; border-radius: 28px; color: {{onSurface}}; }
+.switcher-popup .switcher-list { background-color: {{surface}}; border-radius: 28px; }
+.workspace-switcher-container { background-color: {{surface}}; border-radius: 28px; }

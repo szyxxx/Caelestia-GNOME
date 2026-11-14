@@ -1,0 +1,78 @@
+#!/bin/bash
+# Turn this GNOME session into the Caelestia look. Undo everything with: caelestia-restore
+#   caelestia-apply               apply; your wallpaper and theme choices are kept on re-runs
+#   caelestia-apply --wallpaper   also put the Caelestia wallpaper back
+set -u
+R=~/.local/share/caelestia-rice; B=$R/backup; X=~/.local/share/gnome-shell/extensions
+# Every dconf folder and key this script changes. caelestia-restore puts exactly these back.
+DIRS="/org/gnome/desktop/interface/ /org/gnome/desktop/background/ /org/gnome/desktop/screensaver/
+/org/gnome/desktop/wm/preferences/ /org/gnome/desktop/wm/keybindings/ /org/gnome/shell/keybindings/
+/org/gnome/shell/extensions/user-theme/ /org/gnome/shell/extensions/tiling-assistant/ /org/gnome/mutter/"
+KEYS="/org/gnome/shell/enabled-extensions /org/gnome/shell/disabled-extensions /org/gnome/shell/disable-user-extensions
+/org/gnome/shell/favorite-apps"
+PF=$(gsettings get org.gnome.Ptyxis default-profile-uuid 2>/dev/null | tr -d "'")
+[ -n "$PF" ] && KEYS="$KEYS /org/gnome/Ptyxis/Profiles/$PF/palette"
+
+FIRST=0
+if [ ! -d "$B/dconf" ] && [ ! -f "$B/dconf-before.ini" ]; then   # keep the first backup, never overwrite it on re-runs
+  FIRST=1
+  mkdir -p "$B/dconf" "$B/gtk-4.0" "$B/gtk-3.0"
+  for d in $DIRS; do dconf dump "$d" > "$B/dconf/$(echo "$d" | tr / _).dir"; done
+  for k in $KEYS; do dconf read "$k" > "$B/dconf/$(echo "$k" | tr / _).key"; done
+  echo "$DIRS" > "$B/dconf/dirs"; echo "$KEYS" > "$B/dconf/keys"
+  for d in gtk-4.0 gtk-3.0; do cp -P ~/.config/$d/gtk.css ~/.config/$d/gtk-dark.css "$B/$d/" 2>/dev/null; done
+fi
+s() { gsettings set "$@" || echo "FAILED: $*" >&2; }
+font() { fc-list : family | grep -qiF "$1"; }
+
+W=~/.local/share/backgrounds/caelestia-blackhole.png
+if [ -f "$W" ] && { [ $FIRST = 1 ] || [ "${1:-}" = --wallpaper ]; }; then
+  for k in "background picture-uri" "background picture-uri-dark" "screensaver picture-uri"; do s org.gnome.desktop.$k "file://$W"; done
+fi
+I=org.gnome.desktop.interface
+s $I color-scheme prefer-dark
+s $I enable-hot-corners false
+font 'Google Sans Flex' && { s $I font-name 'Google Sans Flex 10.5'; s $I document-font-name 'Google Sans Flex 11'; }
+font 'CaskaydiaCove Nerd Font' && s $I monospace-font-name 'CaskaydiaCove Nerd Font 11'
+# First run: the look this rice ships with (grey tones from the wallpaper, thin border). Afterwards your own
+# choices from the Themes tab stay. Passing options also matches the accent colour and Yaru theme.
+if [ -f ~/.config/caelestia-gnome/theme.json ]; then ~/.local/bin/caelestia-scheme
+else ~/.local/bin/caelestia-scheme --variant monochrome --border thin; fi || echo "FAILED: caelestia-scheme" >&2
+P=org.gnome.desktop.wm.preferences
+s $P button-layout ':close'
+font 'Google Sans Flex' && s $P titlebar-font 'Google Sans Flex Semi-Bold 10.5'
+s $P num-workspaces 5
+s org.gnome.mutter dynamic-workspaces false
+K=org.gnome.desktop.wm.keybindings; SK=org.gnome.shell.keybindings
+s $K show-desktop "['<Primary><Super>d', '<Primary><Alt>d']"
+s $SK focus-active-notification '[]'
+s $SK toggle-message-tray '[]'
+for i in 1 2 3 4 5; do
+  s $SK switch-to-application-$i '[]'
+  s $K switch-to-workspace-$i "['<Super>$i']"
+  s $K move-to-workspace-$i "['<Super><Shift>$i']"
+done
+dconf write /org/gnome/shell/extensions/tiling-assistant/window-gap 12
+dconf write /org/gnome/shell/extensions/user-theme/name "'Caelestia'"
+# Add to the extension lists instead of replacing them, so your other extensions stay on.
+python3 - <<'PY' || echo "FAILED: extension lists" >&2
+from gi.repository import Gio
+s = Gio.Settings.new('org.gnome.shell')
+on = ['user-theme@gnome-shell-extensions.gcampax.github.com', 'caelestia-gnome@szyx']
+off = ['ubuntu-dock@ubuntu.com', 'ding@rastersoft.com']   # the left bar replaces the dock; no desktop icons
+enabled = [x for x in s.get_strv('enabled-extensions') if x not in off]
+enabled += [x for x in on if x not in enabled]
+disabled = [x for x in s.get_strv('disabled-extensions') if x not in on]
+disabled += [x for x in off if x not in disabled]
+s.set_strv('enabled-extensions', enabled)
+s.set_strv('disabled-extensions', disabled)
+s.set_boolean('disable-user-extensions', False)
+Gio.Settings.sync()
+PY
+for d in gtk-4.0 gtk-3.0; do
+  mkdir -p ~/.config/$d
+  rm -f ~/.config/$d/gtk.css ~/.config/$d/gtk-dark.css
+  printf '@import url("caelestia.css");\n' > ~/.config/$d/gtk.css
+done
+[ -n "$PF" ] && dconf write /org/gnome/Ptyxis/Profiles/$PF/palette "'caelestia'"
+echo "Applied. Log out and back in to load the shell. Undo: caelestia-restore"

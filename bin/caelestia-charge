@@ -1,0 +1,27 @@
+#!/bin/bash
+# Battery charge limit, like macOS "Optimized Battery Charging".
+#   caelestia-charge          show the limit
+#   caelestia-charge 80       stop charging at 80% (kinder to the battery when you are mostly plugged in)
+#   caelestia-charge 100      charge to full (before a long day away from a charger)
+#   caelestia-charge --setup  one-time step (asks for your password) so the limit can change without sudo
+#   caelestia-charge --undo   remove that one-time step again
+# The choice is saved in ~/.config/caelestia-gnome/charge-limit and applied again at every boot.
+F=$(ls /sys/class/power_supply/*/charge_control_end_threshold 2>/dev/null | head -n 1)
+SAVE="$HOME/.config/caelestia-gnome/charge-limit"
+SETUP="$HOME/.local/share/caelestia-rice/setup/charge-setup.sh"
+[ -n "$F" ] || { echo "This computer has no battery charge limit (no charge_control_end_threshold)." >&2; exit 1; }
+B=$(dirname "$F")
+case "${1:-}" in
+    "") echo "limit: $(cat "$F")%  battery: $(cat "$B/capacity")% ($(cat "$B/status"))"; exit 0;;
+    --setup) exec sudo bash "$SETUP";;
+    --undo) exec sudo bash "$SETUP" --undo;;
+    full) L=100;; healthy) L=80;; 60|70|80|90|100) L=$1;;
+    *) echo "use 60, 70, 80, 90 or 100" >&2; exit 2;;
+esac
+mkdir -p "$(dirname "$SAVE")"; echo "$L" > "$SAVE"
+if [ -w "$F" ]; then
+    echo "$L" > "$F" && echo "charge limit: $L%"
+else
+    echo "saved $L%, but the battery file is root-only: run once  caelestia-charge --setup" >&2
+    exit 1
+fi

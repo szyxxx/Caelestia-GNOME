@@ -1,0 +1,9 @@
+/* Caelestia shell theme: stays active on the lock screen, where extensions are unloaded. */
+@import url("/usr/share/gnome-shell/theme/Yaru-dark/gnome-shell.css");
+
+stage { font-family: "Google Sans Flex"; }
+.unlock-dialog-clock-time { font-family: "CaskaydiaCove Nerd Font"; font-size: 96px; font-weight: 600; color: {{primary}}; }
+.unlock-dialog-clock-date { font-size: 20px; color: {{tertiary}}; }
+.unlock-dialog-clock-hint { color: {{onSurfaceVariant}}; }
+.unlock-dialog .login-dialog-prompt-entry, .unlock-dialog StEntry { background-color: {{surfaceContainer}}; color: {{onSurface}}; border-radius: 28px; caret-color: {{primary}}; }
+.unlock-dialog .login-dialog-button.default { background-color: {{primary}}; color: {{onPrimary}}; }

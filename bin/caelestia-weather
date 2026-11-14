@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+"""Set the place the dashboard shows the weather for.
+
+  caelestia-weather                show the current place
+  caelestia-weather Jakarta        look the city up and use it
+  caelestia-weather "Paris, FR"    add a country code when a name is ambiguous
+  caelestia-weather --auto         use the city of this computer's time zone
+
+Looks the name up at open-meteo.com (the same service the dashboard reads the weather from) and
+saves it in ~/.config/caelestia-gnome/config.json. Shows at your next login.
+"""
+import json, os, sys, urllib.parse, urllib.request
+
+CONF = os.path.join(os.environ.get('XDG_CONFIG_HOME') or os.path.expanduser('~/.config'), 'caelestia-gnome/config.json')
+
+
+def load():
+    try:
+        return json.load(open(CONF))
+    except (OSError, ValueError):
+        return {}
+
+
+def timezone_city():
+    try:
+        zone = os.path.realpath('/etc/localtime').split('zoneinfo/')[1]
+    except IndexError:
+        return None
+    return zone.split('/')[-1].replace('_', ' ') if '/' in zone else None
+
+
+def lookup(name):
+    city, _, country = (s.strip() for s in name.partition(','))
+    url = 'https://geocoding-api.open-meteo.com/v1/search?count=10&name=' + urllib.parse.quote(city)
+    with urllib.request.urlopen(url, timeout=15) as r:
+        hits = json.load(r).get('results') or []
+    if country:
+        hits = [h for h in hits if country.lower() in (h.get('country_code', '').lower(), h.get('country', '').lower())]
+    return hits[0] if hits else None
+
+
+def main():
+    args = sys.argv[1:]
+    data = load()
+    if not args:
+        print(f"{data.get('place', 'Bandung (the built-in default)')}")
+        return
+    if args[0] in ('-h', '--help'):
+        print(__doc__.strip())
+        return
+    name = timezone_city() if args[0] == '--auto' else ' '.join(args)
+    if not name:
+        sys.exit('Could not tell the city from the time zone. Give a city name.')
+    try:
+        hit = lookup(name)
+    except OSError as e:
+        sys.exit(f'Could not reach open-meteo.com: {e}')
+    if not hit:
+        sys.exit(f'No place called "{name}" found.')
+    data.update(latitude=round(hit['latitude'], 4), longitude=round(hit['longitude'], 4), place=hit['name'])
+    os.makedirs(os.path.dirname(CONF), exist_ok=True)
+    with open(CONF + '.tmp', 'w') as f:
+        json.dump(data, f, indent=1)
+    os.replace(CONF + '.tmp', CONF)
+    print(f"Weather place: {hit['name']}, {hit.get('country', '')} ({data['latitude']}, {data['longitude']})")
+
+
+if __name__ == '__main__':
+    main()
