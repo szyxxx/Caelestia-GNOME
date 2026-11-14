@@ -145,7 +145,8 @@ def main():
                 k = keyfile(local); k.set_string('Desktop Entry', 'Icon', s['icon']); k.save_to_file(local)
             print('restored', app_id)
             continue
-        info = Gio.DesktopAppInfo.new(app_id)
+        try: info = Gio.DesktopAppInfo.new(app_id)
+        except TypeError: info = None      # PyGObject raises for an app that is pinned but not installed
         if not info: print('skip (not installed)', app_id); continue
         src_file = info.get_filename()
         k = keyfile(src_file)

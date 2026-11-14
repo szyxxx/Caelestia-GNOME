@@ -280,8 +280,8 @@ def apply(conf, quiet=False):
     if os.path.exists(icons):
         arg = [] if conf['dock_icons'] != 'off' else ['--restore']
         r = subprocess.run([icons, *arg], capture_output=True, text=True)
-        if r.returncode:
-            problems.append('dock icons: ' + (r.stderr.strip().split('\n')[-1] if r.stderr.strip() else 'caelestia-icons failed'))
+        if r.returncode:   # cosmetic, so it is reported but does not make the command fail
+            print('warning: dock icons:', r.stderr.strip().split('\n')[-1] if r.stderr.strip() else 'caelestia-icons failed', file=sys.stderr)
     for p in problems:
         print('warning:', p, file=sys.stderr)
     return not problems
