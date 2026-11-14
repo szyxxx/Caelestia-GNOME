@@ -153,16 +153,20 @@ for f in "$SRC"/bin/*; do install -m 755 "$f" "$BIN/"; done
 install -m 644 "$SRC"/setup/* "$DATA/setup/"
 
 if [ ! -d "$EXT_DIR/$USER_THEME" ] && [ ! -d "/usr/share/gnome-shell/extensions/$USER_THEME" ]; then
-  say "Installing the User Themes extension (from extensions.gnome.org)"
-  Z=$(mktemp)
-  if fetch "https://extensions.gnome.org/download-extension/$USER_THEME.shell-extension.zip?shell_version=$SHELL_VER" "$Z" &&
-     python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' "$Z" "$EXT_DIR/$USER_THEME" 2>/dev/null; then
-    glib-compile-schemas "$EXT_DIR/$USER_THEME/schemas" 2>/dev/null || true
+  # GNOME's own User Themes extension (styles the lock screen). The copy in this repository is for GNOME 50.
+  if [ "$SHELL_VER" = 50 ] && [ -d "$SRC/third_party/$USER_THEME" ]; then
+    cp -r "$SRC/third_party/$USER_THEME" "$EXT_DIR/$USER_THEME"
   else
-    rm -rf "${EXT_DIR:?}/$USER_THEME"
-    warn "User Themes could not be downloaded: the lock screen keeps the stock look. Later: sudo apt install gnome-shell-extension-user-theme"
+    say "Downloading the User Themes extension (from extensions.gnome.org)"
+    Z=$(mktemp)
+    fetch "https://extensions.gnome.org/download-extension/$USER_THEME.shell-extension.zip?shell_version=$SHELL_VER" "$Z" &&
+      python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' "$Z" "$EXT_DIR/$USER_THEME" 2>/dev/null || {
+        rm -rf "${EXT_DIR:?}/$USER_THEME"
+        warn "User Themes could not be downloaded: the lock screen keeps the stock look. Later: sudo apt install gnome-shell-extension-user-theme"
+      }
+    rm -f "$Z"
   fi
-  rm -f "$Z"
+  [ ! -d "$EXT_DIR/$USER_THEME/schemas" ] || glib-compile-schemas "$EXT_DIR/$USER_THEME/schemas" 2>/dev/null || true
 fi
 
 # ---- 5. fonts and wallpaper ---------------------------------------------------------------------
