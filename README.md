@@ -6,7 +6,7 @@
 
 ![GNOME 50](https://img.shields.io/badge/GNOME-50-4A86CF?style=for-the-badge&logo=gnome&logoColor=white)
 ![Ubuntu 26.04](https://img.shields.io/badge/Ubuntu-26.04-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
-![No sudo needed](https://img.shields.io/badge/installs_in-your_home_folder-7aa2f7?style=for-the-badge)
+![Installs in your home folder](https://img.shields.io/badge/installs_in-your_home_folder-7aa2f7?style=for-the-badge)
 ![Undo](https://img.shields.io/badge/one_command-undo-9ece6a?style=for-the-badge)
 
 <img src="assets/hero.jpg" alt="Desktop with the dashboard open: clock, weather, system meters, calendar and media" width="100%">
