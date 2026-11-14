@@ -1,20 +1,76 @@
+<div align="center">
+
 # Caelestia for GNOME
 
-The [Caelestia](https://github.com/caelestia-dots/shell) desktop look, rebuilt as a GNOME Shell
-extension so it runs on a stock Ubuntu desktop: a left bar fused with a screen border, drawers,
-a launcher, a dashboard (clock, weather, calendar, media with lyrics, system meters), a sidebar,
-Wi-Fi / Bluetooth / battery / phone popouts, spring motion for windows, and colours taken from
-your wallpaper.
+**The Caelestia desktop, rebuilt as a GNOME Shell extension. Runs on stock Ubuntu, installs with one command.**
 
-**Needs GNOME 50 (Ubuntu 26.04).** It has only been built and tested there.
+![GNOME 50](https://img.shields.io/badge/GNOME-50-4A86CF?style=for-the-badge&logo=gnome&logoColor=white)
+![Ubuntu 26.04](https://img.shields.io/badge/Ubuntu-26.04-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
+![No sudo needed](https://img.shields.io/badge/installs_in-your_home_folder-7aa2f7?style=for-the-badge)
+![Undo](https://img.shields.io/badge/one_command-undo-9ece6a?style=for-the-badge)
 
-## Install
+<img src="assets/hero.jpg" alt="Desktop with the dashboard open: clock, weather, system meters, calendar and media" width="100%">
+
+</div>
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/szyxxx/Caelestia-GNOME/main/install.sh | bash
 ```
 
-Then log out and back in.
+Then log out and back in. That's it.
+
+> Based on the look of [caelestia-dots/shell](https://github.com/caelestia-dots/shell), which needs
+> Hyprland. This one keeps you on GNOME. Screenshots show the Tokyo Night profile; a fresh install
+> starts with soft grey tones taken from the wallpaper.
+
+## What you get
+
+<table>
+<tr>
+<td width="50%"><img src="assets/media.jpg" alt="Media page with album art and synced lyrics"><br><b>Media with synced lyrics</b><br>Album art, controls and the current line, for any player.</td>
+<td width="50%"><img src="assets/performance.jpg" alt="Performance page with processor, memory, storage and network"><br><b>Performance</b><br>Processor, memory, storage, network and temperature.</td>
+</tr>
+<tr>
+<td><img src="assets/themes.jpg" alt="Themes page with 15 rice profiles"><br><b>15 rice profiles</b><br>Or colours from your wallpaper. Motion and corner shape are yours to pick.</td>
+<td><img src="assets/launcher.jpg" alt="Launcher showing commands"><br><b>Launcher on Super</b><br>Apps, wallpapers, clipboard history and quick actions.</td>
+</tr>
+</table>
+
+<img src="assets/desktop.jpg" alt="Clean desktop with the left bar, screen border and the current lyric line at the top" width="100%">
+
+<table>
+<tr>
+<td width="24%"><img src="assets/sidebar.jpg" alt="Sidebar with notifications and quick toggles"></td>
+<td>
+
+**Also in the box**
+
+- **Left bar and screen border** fused into one frame: workspaces, window title, clock, status and power
+- **Sidebar** with notifications and quick toggles
+- **Popouts** for Wi-Fi, Bluetooth, battery (with charge limit) and your phone
+- **Lyric line on the desktop** that steps aside for maximized windows
+- **Spring motion** for windows, drawers and workspace switches
+- **Calendar** with your Google Calendar events
+- **Phone link** through GSConnect: battery, clipboard, send files, drag-to-share
+- **Colours everywhere**: shell, GTK apps and the terminal follow the same palette
+
+</td>
+</tr>
+</table>
+
+### One wallpaper, many moods
+
+<img src="assets/profiles.jpg" alt="The dashboard in six profiles: Mocha, Gruvbox, Rosé Pine, Nord, Latte and Tokyo Night" width="100%">
+
+<sub>Mocha · Gruvbox · Rosé Pine · Nord · Latte · Tokyo Night. Switch with <code>caelestia-scheme --profile NAME</code> or in the dashboard's Themes tab.</sub>
+
+## Install
+
+**Needs GNOME 50 (Ubuntu 26.04).** It has only been built and tested there.
+
+```bash
+wget -qO- https://raw.githubusercontent.com/szyxxx/Caelestia-GNOME/main/install.sh | bash
+```
 
 The installer puts everything in your home folder, backs up the settings it changes, and asks for
 `sudo` only if an Ubuntu package it needs is missing. It asks two questions (weather city, and
